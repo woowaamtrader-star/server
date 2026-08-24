@@ -21,13 +21,18 @@ if not API_KEY:
 genai.configure(api_key=API_KEY)
 
 # --- 2. เลือกโมเดล AI ที่ใช้งาน ---
+# หมายเหตุ: Gemini 1.0/1.5 ทั้งตระกูลถูกปิดใช้งานถาวรแล้ว (ทุก request คืน 404)
+# ตั้งชื่อโมเดลผ่าน env var เพื่อให้สลับรุ่นได้โดยไม่ต้องแก้โค้ด/deploy ใหม่
+# เวลา Google ประกาศ deprecate รุ่นถัดไป (ดูรายชื่อรุ่นล่าสุดได้ที่ ai.google.dev/gemini-api/docs/models)
+GEMINI_MODEL_NAME = os.environ.get("GEMINI_MODEL_NAME", "gemini-2.5-flash")
+
 generation_config = {
     "temperature": 0.2,  # ลดความเพ้อ ให้วิเคราะห์ตามตัวเลขตลาดจริง
     "response_mime_type": "application/json",
 }
 
 model = genai.GenerativeModel(
-    model_name="gemini-1.5-flash",
+    model_name=GEMINI_MODEL_NAME,
     generation_config=generation_config,
 )
 
