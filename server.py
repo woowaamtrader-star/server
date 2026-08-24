@@ -1,10 +1,10 @@
 from flask import Flask, request, jsonify
-from google import genai
+from google import genai  # แพ็กเกจใหม่ล่าสุดใช้ตัวนี้
 
 app = Flask(__name__)
 
-# กำหนดค่า Client สำหรับ Gemini API (ใส่ API Key ของคุณตรงนี้)
-client = genai.Client(api_key="AQ.Ab8RN6IYUF152LVuJTs8ywaZknSlEMe_rvQ_sVk4Daeqnlq2ZA")
+# กำหนดค่า Client สำหรับ Gemini API (ใช้ API Key ของคุณ)
+client = genai.Client(api_key="AQ.Ab8RN6IYUF152LvUJt8ywaZKnSLEMe_rvQ-SvK4Daeqnlq2ZA")
 
 
 @app.route('/predict', methods=['POST'])
