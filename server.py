@@ -6,7 +6,7 @@ app = Flask(__name__)
 
 # --- 1. ตั้งค่า API Key สำหรับ Gemini ---
 # นำ API Key ของคุณมาใส่แทนที่ข้อความด้านล่างนี้
-API_KEY = "AQ.Ab8RN6IYUF152LVuJTs8ywaZknSlEMe_rvQ_sVk4Daeqnlq2ZA"
+API_KEY = "AQ.Ab8RN6JEA48EwfN4g8dBd3wMM3IYuWIU405BhephRFTL0IiODw"
 genai.configure(api_key=API_KEY)
 
 # --- 2. เลือกโมเดล AI ที่ใช้งาน ---
