@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 import os
 import json
 import logging
@@ -18,23 +19,15 @@ if not API_KEY:
         "GEMINI_API_KEY ไม่ถูกตั้งค่า กรุณาตั้ง environment variable ก่อนรัน "
         "(อย่า hardcode key ในโค้ด โดยเฉพาะถ้าจะ push ขึ้น git repo)"
     )
-genai.configure(api_key=API_KEY)
+
+# ใช้ google-genai (SDK ใหม่) แทน google-generativeai ตัวเก่าที่หมดอายุการซัพพอร์ตไปแล้ว
+# (end-of-life 31 ส.ค. 2025) - SDK เก่าไม่รองรับโมเดลรุ่นใหม่ๆ อย่างถูกต้อง ทำให้เจอ 404 ค้าง
+client = genai.Client(api_key=API_KEY)
 
 # --- 2. เลือกโมเดล AI ที่ใช้งาน ---
-# หมายเหตุ: Gemini 1.0/1.5 ทั้งตระกูลถูกปิดใช้งานถาวรแล้ว (ทุก request คืน 404)
 # ตั้งชื่อโมเดลผ่าน env var เพื่อให้สลับรุ่นได้โดยไม่ต้องแก้โค้ด/deploy ใหม่
 # เวลา Google ประกาศ deprecate รุ่นถัดไป (ดูรายชื่อรุ่นล่าสุดได้ที่ ai.google.dev/gemini-api/docs/models)
 GEMINI_MODEL_NAME = os.environ.get("GEMINI_MODEL_NAME", "gemini-2.5-flash")
-
-generation_config = {
-    "temperature": 0.2,  # ลดความเพ้อ ให้วิเคราะห์ตามตัวเลขตลาดจริง
-    "response_mime_type": "application/json",
-}
-
-model = genai.GenerativeModel(
-    model_name=GEMINI_MODEL_NAME,
-    generation_config=generation_config,
-)
 
 
 def describe_rsi_zone(rsi: float) -> str:
@@ -137,7 +130,14 @@ Respond with ONLY a JSON object (no markdown, no extra text) with exactly these 
 - "reason": one short sentence (max ~20 words) explaining the key factor(s) behind the decision
 """
 
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(
+            model=GEMINI_MODEL_NAME,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.2,  # ลดความเพ้อ ให้วิเคราะห์ตามตัวเลขตลาดจริง
+                response_mime_type="application/json",
+            ),
+        )
         response_text = response.text.strip()
 
         result_json = json.loads(response_text)
