@@ -41,5 +41,8 @@ def predict():
         return jsonify({"signal": 0, "confidence": 0.0})
 
 
+import os
+
 if __name__ == '__main__':
-    app.run(host='https://server-utwi.onrender.com/predict', port=24)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
