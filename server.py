@@ -29,6 +29,18 @@ client = genai.Client(api_key=API_KEY)
 # เวลา Google ประกาศ deprecate รุ่นถัดไป (ดูรายชื่อรุ่นล่าสุดได้ที่ ai.google.dev/gemini-api/docs/models)
 GEMINI_MODEL_NAME = os.environ.get("GEMINI_MODEL_NAME", "gemini-2.5-flash")
 
+# --- 2b. Groq (fallback) - ใช้เฉพาะตอน Gemini โควต้าเต็ม (429) เท่านั้น ---
+# ถ้าไม่ตั้ง GROQ_API_KEY ไว้ ระบบจะไม่ fallback แค่คืนค่า Hold เหมือนเดิมตอน Gemini ชนโควต้า
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+GROQ_MODEL_NAME = os.environ.get("GROQ_MODEL_NAME", "llama-3.3-70b-versatile")
+groq_client = None
+if GROQ_API_KEY:
+    from openai import OpenAI  # Groq ใช้ API รูปแบบเดียวกับ OpenAI SDK
+    groq_client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=GROQ_API_KEY)
+    logger.info("Groq fallback enabled (model=%s)", GROQ_MODEL_NAME)
+else:
+    logger.info("GROQ_API_KEY not set - Groq fallback disabled, will return Hold when Gemini quota is exhausted")
+
 
 def describe_rsi_zone(rsi: float) -> str:
     if rsi >= 70:
@@ -130,15 +142,36 @@ Respond with ONLY a JSON object (no markdown, no extra text) with exactly these 
 - "reason": one short sentence (max ~20 words) explaining the key factor(s) behind the decision
 """
 
-        response = client.models.generate_content(
-            model=GEMINI_MODEL_NAME,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                temperature=0.2,  # ลดความเพ้อ ให้วิเคราะห์ตามตัวเลขตลาดจริง
-                response_mime_type="application/json",
-            ),
-        )
-        response_text = response.text.strip()
+        response_text = None
+        provider_used = "gemini"
+
+        try:
+            response = client.models.generate_content(
+                model=GEMINI_MODEL_NAME,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    temperature=0.2,  # ลดความเพ้อ ให้วิเคราะห์ตามตัวเลขตลาดจริง
+                    response_mime_type="application/json",
+                ),
+            )
+            response_text = response.text.strip()
+
+        except Exception as gemini_err:
+            is_quota_error = "429" in str(gemini_err) or "RESOURCE_EXHAUSTED" in str(gemini_err)
+
+            if is_quota_error and groq_client is not None:
+                logger.warning("Gemini quota exhausted (429) - falling back to Groq (%s)", GROQ_MODEL_NAME)
+                provider_used = "groq_fallback"
+                groq_response = groq_client.chat.completions.create(
+                    model=GROQ_MODEL_NAME,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.2,
+                    response_format={"type": "json_object"},
+                )
+                response_text = groq_response.choices[0].message.content.strip()
+            else:
+                # ไม่ใช่ quota error หรือไม่ได้ตั้ง Groq ไว้ - โยน error ต่อให้ except ด้านล่างจัดการ
+                raise
 
         result_json = json.loads(response_text)
 
@@ -151,18 +184,27 @@ Respond with ONLY a JSON object (no markdown, no extra text) with exactly these 
         confidence = max(0.0, min(1.0, confidence))
 
         logger.info(
-            "symbol=%s signal=%s confidence=%.2f reason=%s",
-            symbol, signal, confidence, reason,
+            "provider=%s symbol=%s signal=%s confidence=%.2f reason=%s",
+            provider_used, symbol, signal, confidence, reason,
         )
 
-        return jsonify({"signal": signal, "confidence": confidence, "reason": reason})
+        return jsonify({
+            "signal": signal,
+            "confidence": confidence,
+            "reason": reason,
+            "provider": provider_used,
+        })
 
     except json.JSONDecodeError as e:
         logger.error("Failed to parse Gemini JSON response: %s", e)
         return jsonify({"signal": 0, "confidence": 0.0, "reason": "AI response parse error"})
     except Exception as e:
-        logger.exception("Error calling Gemini API")
-        # กรณีเกิดข้อผิดพลาด ส่งค่า 0 (Hold) กลับไปก่อนเพื่อความปลอดภัย
+        is_quota_error = "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e)
+        if is_quota_error:
+            logger.warning("Gemini quota exhausted and no Groq fallback configured (set GROQ_API_KEY to enable)")
+            return jsonify({"signal": 0, "confidence": 0.0, "reason": "Gemini quota exhausted (429), no fallback configured"})
+        logger.exception("Error calling AI provider")
+        # กรณีเกิดข้อผิดพลาดอื่นๆ ส่งค่า 0 (Hold) กลับไปก่อนเพื่อความปลอดภัย
         return jsonify({"signal": 0, "confidence": 0.0, "reason": f"server error: {e}"})
 
 
