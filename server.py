@@ -32,7 +32,7 @@ GEMINI_MODEL_NAME = os.environ.get("GEMINI_MODEL_NAME", "gemini-3.6-flash")
 # --- 2b. Groq (fallback) - ใช้เฉพาะตอน Gemini โควต้าเต็ม (429) เท่านั้น ---
 # ถ้าไม่ตั้ง GROQ_API_KEY ไว้ ระบบจะไม่ fallback แค่คืนค่า Hold เหมือนเดิมตอน Gemini ชนโควต้า
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
-GROQ_MODEL_NAME = os.environ.get("GROQ_MODEL_NAME", "llama-3.1-8b-instant")
+GROQ_MODEL_NAME = os.environ.get("GROQ_MODEL_NAME", "openai/gpt-oss-20b")
 # หมายเหตุ: เดิมใช้ openai/gpt-oss-120b แต่ free tier มี TPD (token/วัน) แค่ 200,000
 # หารด้วย ~2,000 token/request ของเรา เหลือโควต้าจริงแค่ ~100 ครั้ง/วันเท่านั้น
 # llama-3.1-8b-instant มี TPD 500,000 และ RPD 14,400 - เหมาะกับ fallback ที่ต้องรับ volume สูง
