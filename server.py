@@ -32,14 +32,18 @@ GEMINI_MODEL_NAME = os.environ.get("GEMINI_MODEL_NAME", "gemini-3.6-flash")
 # --- 2b. Groq (fallback) - ใช้เฉพาะตอน Gemini โควต้าเต็ม (429) เท่านั้น ---
 # ถ้าไม่ตั้ง GROQ_API_KEY ไว้ ระบบจะไม่ fallback แค่คืนค่า Hold เหมือนเดิมตอน Gemini ชนโควต้า
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
-GROQ_MODEL_NAME = os.environ.get("GROQ_MODEL_NAME", "openai/gpt-oss-120b")
-# หมายเหตุ: llama-3.3-70b-versatile ถูก Groq ประกาศ deprecate ไปตั้งแต่ 17 มิ.ย. 2026
-# แนะนำให้ย้ายมาใช้ openai/gpt-oss-120b หรือ qwen/qwen3.6-27b แทน
-# เช็ครายชื่อโมเดลปัจจุบันได้ที่ console.groq.com/docs/models
+GROQ_MODEL_NAME = os.environ.get("GROQ_MODEL_NAME", "llama-3.1-8b-instant")
+# หมายเหตุ: เดิมใช้ openai/gpt-oss-120b แต่ free tier มี TPD (token/วัน) แค่ 200,000
+# หารด้วย ~2,000 token/request ของเรา เหลือโควต้าจริงแค่ ~100 ครั้ง/วันเท่านั้น
+# llama-3.1-8b-instant มี TPD 500,000 และ RPD 14,400 - เหมาะกับ fallback ที่ต้องรับ volume สูง
+# กว่ามาก แลกกับความฉลาดที่ลดลง แต่พอใช้งานได้ในฐานะตัวสำรอง (ไม่ใช่ตัวหลัก)
 groq_client = None
 if GROQ_API_KEY:
     from openai import OpenAI  # Groq ใช้ API รูปแบบเดียวกับ OpenAI SDK
-    groq_client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=GROQ_API_KEY)
+    # max_retries=0: ปิด auto-retry ของ SDK เพราะเวลาเจอ 429 มันจะรอตาม Retry-After
+    # (เจอจริงคือ 57 วินาที) ซึ่งนานกว่า timeout ของ EA (20 วินาที) มาก
+    # ถ้าปล่อย default retry ไว้ EA จะ timeout ค้างก่อน server จะตอบกลับด้วยซ้ำ
+    groq_client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=GROQ_API_KEY, max_retries=0)
     logger.info("Groq fallback enabled (model=%s)", GROQ_MODEL_NAME)
 else:
     logger.info("GROQ_API_KEY not set - Groq fallback disabled, will return Hold when Gemini quota is exhausted")
@@ -165,13 +169,22 @@ Respond with ONLY a JSON object (no markdown, no extra text) with exactly these 
             if is_quota_error and groq_client is not None:
                 logger.warning("Gemini quota exhausted (429) - falling back to Groq (%s)", GROQ_MODEL_NAME)
                 provider_used = "groq_fallback"
-                groq_response = groq_client.chat.completions.create(
-                    model=GROQ_MODEL_NAME,
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.2,
-                    response_format={"type": "json_object"},
-                )
-                response_text = groq_response.choices[0].message.content.strip()
+                try:
+                    groq_response = groq_client.chat.completions.create(
+                        model=GROQ_MODEL_NAME,
+                        messages=[{"role": "user", "content": prompt}],
+                        temperature=0.2,
+                        response_format={"type": "json_object"},
+                    )
+                    response_text = groq_response.choices[0].message.content.strip()
+                except Exception as groq_err:
+                    # ทั้ง Gemini และ Groq โควต้าเต็มพร้อมกัน - คืน Hold ทันที ไม่ต้อง retry ต่อ
+                    logger.warning("Groq fallback also failed: %s", groq_err)
+                    return jsonify({
+                        "signal": 0, "confidence": 0.0,
+                        "reason": "Both Gemini and Groq unavailable (rate limited)",
+                        "provider": "none",
+                    })
             else:
                 # ไม่ใช่ quota error หรือไม่ได้ตั้ง Groq ไว้ - โยน error ต่อให้ except ด้านล่างจัดการ
                 raise
