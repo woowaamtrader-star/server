@@ -32,7 +32,10 @@ GEMINI_MODEL_NAME = os.environ.get("GEMINI_MODEL_NAME", "gemini-2.5-flash")
 # --- 2b. Groq (fallback) - ใช้เฉพาะตอน Gemini โควต้าเต็ม (429) เท่านั้น ---
 # ถ้าไม่ตั้ง GROQ_API_KEY ไว้ ระบบจะไม่ fallback แค่คืนค่า Hold เหมือนเดิมตอน Gemini ชนโควต้า
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
-GROQ_MODEL_NAME = os.environ.get("GROQ_MODEL_NAME", "llama-3.3-70b-versatile")
+GROQ_MODEL_NAME = os.environ.get("GROQ_MODEL_NAME", "openai/gpt-oss-120b")
+# หมายเหตุ: llama-3.3-70b-versatile ถูก Groq ประกาศ deprecate ไปตั้งแต่ 17 มิ.ย. 2026
+# แนะนำให้ย้ายมาใช้ openai/gpt-oss-120b หรือ qwen/qwen3.6-27b แทน
+# เช็ครายชื่อโมเดลปัจจุบันได้ที่ console.groq.com/docs/models
 groq_client = None
 if GROQ_API_KEY:
     from openai import OpenAI  # Groq ใช้ API รูปแบบเดียวกับ OpenAI SDK
