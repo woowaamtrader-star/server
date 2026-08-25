@@ -27,7 +27,7 @@ client = genai.Client(api_key=API_KEY)
 # --- 2. เลือกโมเดล AI ที่ใช้งาน ---
 # ตั้งชื่อโมเดลผ่าน env var เพื่อให้สลับรุ่นได้โดยไม่ต้องแก้โค้ด/deploy ใหม่
 # เวลา Google ประกาศ deprecate รุ่นถัดไป (ดูรายชื่อรุ่นล่าสุดได้ที่ ai.google.dev/gemini-api/docs/models)
-GEMINI_MODEL_NAME = os.environ.get("GEMINI_MODEL_NAME", "gemini-2.5-flash")
+GEMINI_MODEL_NAME = os.environ.get("GEMINI_MODEL_NAME", "gemini-3.6-flash")
 
 # --- 2b. Groq (fallback) - ใช้เฉพาะตอน Gemini โควต้าเต็ม (429) เท่านั้น ---
 # ถ้าไม่ตั้ง GROQ_API_KEY ไว้ ระบบจะไม่ fallback แค่คืนค่า Hold เหมือนเดิมตอน Gemini ชนโควต้า
